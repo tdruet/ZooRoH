@@ -1,0 +1,32 @@
+#NUMBER_OF_CLASSES
+2
+#RATE_PARAMETERS
+128 128
+#INBREEDING_INDICATORS
+1 0
+#STARTING_MIXING_PROPORTIONS
+0.05 0.95
+#TRANSITION_MATRIX
+1 1
+1 1
+#ERROR_RATE
+0.001
+#NUMBER_OF_INDIVIDUALS
+110
+#INPUT_FILE
+data.gen
+#ANALYSIS_RANGE
+45 60
+#MINMAF
+0.01
+#ESTIMATE_RATES
+1 512
+#ITERATIONS
+1000
+#ONE_RATE
+
+
+## example parameter file with one IBD and one non-IBD class with identical rate (1G model)
+## the data.gen contains 110 individuals and analysis is performed for individuals 45 to 60
+## estimation of rate is constrained between G=1 and G=512
+

@@ -1,0 +1,33 @@
+#NUMBER_OF_CLASSES
+9
+#RATE_PARAMETERS
+2 4 8 16 32 64 128 256 256
+#INBREEDING_INDICATORS
+1 1 1 1 1 1 1 1 0
+#STARTING_MIXING_PROPORTIONS
+0.01 0.01 0.01 0.01 0.01 0.01 0.01 0.01 0.92
+#TRANSITION_MATRIX
+1 1 1 1 1 1 1 1 1
+1 1 1 1 1 1 1 1 1
+1 1 1 1 1 1 1 1 1
+1 1 1 1 1 1 1 1 1
+1 1 1 1 1 1 1 1 1
+1 1 1 1 1 1 1 1 1
+1 1 1 1 1 1 1 1 1
+1 1 1 1 1 1 1 1 1
+1 1 1 1 1 1 1 1 1
+#ERROR_RATE
+0.001
+#NUMBER_OF_INDIVIDUALS
+110
+#INPUT_FILE
+data.gen
+#MINMAF
+0.01
+#ITERATIONS
+1000
+
+## example parameter file with eight IBD classes and one non-IBD class, the rates are pre-defined and not estimated (mix9G model)
+## the data.gen contains 110 individuals and analysis is performed for all individuals
+
+
