@@ -565,7 +565,7 @@ character*200 ::inputline,label1,iformat
 open(20,file='param.txt')
 
 nclust=0;testid=0;testid2=0;nind=0;ift=1
-minmaf=0.d0;readf=0;estimateG=0;niter=100;onerate=0
+minmaf=0.d0;readf=0;estimateG=0;niter=1000;onerate=0
 OUTPUT='no'
 
 print*,'        '
@@ -593,7 +593,7 @@ if(inputline(1:16) .eq. "#RATE_PARAMETERS")then
  print'(*(1x,f9.6))',(ainit(i),i=1,nclust)
  check=1
 endif
-if(inputline(1:22) .eq. "#INBREEDING_INDICATORS")then
+if(inputline(1:22) .eq. "#HBD_INDICATORS")then
  if(nclust==0)then
    print*,'NUMBER OF CLASSES shoud come first !'
    stop
