@@ -2,7 +2,7 @@
 9
 #RATE_PARAMETERS
 2 4 8 16 32 64 128 256 256
-#INBREEDING_INDICATORS
+#HBD_INDICATORS
 1 1 1 1 1 1 1 1 0
 #STARTING_MIXING_PROPORTIONS
 0.01 0.01 0.01 0.01 0.01 0.01 0.01 0.01 0.92
@@ -27,7 +27,7 @@ data.gen
 #ITERATIONS
 1000
 
-## example parameter file with eight IBD classes and one non-IBD class, the rates are pre-defined and not estimated (mix9G model)
+## example parameter file with eight HBD classes and one non-HBD class, the rates are pre-defined and not estimated (Mix9R model)
 ## the data.gen contains 110 individuals and analysis is performed for all individuals
 
 
