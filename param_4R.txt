@@ -2,7 +2,7 @@
 4
 #RATE_PARAMETERS
 32 128 512 512
-#INBREEDING_INDICATORS
+#HBD_INDICATORS
 1 1 1 0
 #STARTING_MIXING_PROPORTIONS
 0.02 0.02 0.02 0.94
@@ -25,9 +25,9 @@ data.gen
 1000
 
 
-## example parameter file with three IBD classes and one non-IBD class (4G model)
+## example parameter file with three HBD classes and one non-HBD class (4R model)
 ## the data.gen contains 110 individuals and analysis is performed for all individuals
-## estimation of rate is constrained between G=1 and G=512
+## estimation of rate is constrained between R=1 and R=512
 
 
 
