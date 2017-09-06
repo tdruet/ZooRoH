@@ -17,24 +17,25 @@
 program ZooRoH
 implicit none
 integer ::i,j,k,l,io,n,npos,nclust,round,nind,id,maxid,bp,chr,testid,testid2,nF,nl
-integer ::lf,nhet,nsnps,starts,ends,nchr,lpos,fpos,niter,ift
-integer ::readf,estimateG,onerate,nparam
+integer ::lf,nhet,nsnps,starts,ends,nchr,lpos,fpos,niter,ift,oldstate
+integer ::readf,estimateG,onerate,nparam,pos(1)
 integer*2, allocatable ::geno(:),genos(:,:)
-integer, allocatable ::posi(:),chr_limits(:,:),isF(:),IT(:,:)
+integer, allocatable ::posi(:),chr_limits(:,:),isF(:),IT(:,:),states(:),phi(:,:)
 real*8, allocatable ::alpha(:,:),scaling(:),beta(:,:),gamma(:,:),ems(:,:),freq(:),pinit(:),Fs(:),hsprobs(:),as(:),ainit(:),Finit(:)
 real*8, allocatable ::outprob(:,:,:),num_bjk(:,:),den_bjk(:),num_pi(:),den_pi(:),trans(:,:),T2(:,:),homoz(:),freqin(:),pemission(:,:)
 real*8, allocatable ::globalF(:,:)
-real*8 ::f0,f1,f2,ptrans,lik,val,num_transition,pos,maxprob,pF,perr,loglik,maf,minmaf,AIC,BIC
-real*8 ::tmp2,lseg,fromitoj,minrate,maxrate
+real*8 ::f0,f1,f2,ptrans,lik,num_transition,maxprob,pF,perr,loglik,maf,minmaf,AIC,BIC
+real*8 ::tmp2,lseg,fromitoj,minrate,maxrate,pmax
 real*8, allocatable ::global(:),fromi(:),ini(:),mux(:),EL(:)
 real*4, allocatable ::genosr(:,:),genor(:)
+real*8, allocatable ::val(:),delta(:,:)
 real*8, parameter ::Morgan=100000000.d0
 character*50 ::mname,chrom,all1,all2,chromold,filename,freqfile
 
 character*50 ::simfile,outfile,str1,str4,OUTPUT
 integer ::checksim,nclass,maxclass
 integer, allocatable ::classes(:,:),oldnum(:),statein(:)
-real*8, allocatable :: checktable(:,:),probtable(:,:,:)
+real*8, allocatable :: checktable(:,:),probtable(:,:,:),checktable2(:,:)
 
 ! file with genotypes at each marker for one individual: number of 1 alleles (0 for 22, 1 for 12 and 2 for 11)
 ! frequencies: frequency of allele 1
@@ -44,11 +45,13 @@ real*8, allocatable :: checktable(:,:),probtable(:,:,:)
 call read_parameters
 
 open(10,file=filename) 
-open(11,file='segmentsF.txt')
-open(12,file='mixingF.txt')
-open(13,file='averageF.txt')
-open(14,file='countsF.txt')
-if(estimateG==1)open(15,file='ageF.txt')
+open(11,file='HBDsegments.txt')
+open(21,file='HBDsegments_per_class.txt')
+open(12,file='HBDclasses_MixingCoef.txt')
+open(13,file='HBDclasses_MeanProb.txt')
+open(14,file='HBDclasses_Counts.txt')
+if(estimateG==1)open(15,file='HBDclasses_Rates.txt')
+if(OUTPUT .eq. 'IND')open(112,file='LocalHBDp.txt')
 !open(16,file='inbreeding.prob')
 
 npos=0;chromold='chr0';nchr=0
@@ -64,10 +67,10 @@ if(ift==1)allocate(geno(nind),freq(npos),posi(npos),genos(nind,npos),chr_limits(
 if(ift==2 .or. ift==3)allocate(genor(3*nind),freq(npos),posi(npos),genosr(3*nind,npos),chr_limits(nchr,2))
 if(ift==4)allocate(geno(2*nind),freq(npos),posi(npos),genos(2*nind,npos),chr_limits(nchr,2))
 allocate(homoz(nind))
-if(OUTPUT .eq. "PartialF")allocate(outprob(npos,nind,sum(isF)))
-if(OUTPUT .eq. "PartialF" .or. OUTPUT .eq. "TotalF")allocate(globalF(npos,nind))
-if(OUTPUT .eq. "PartialF")outprob=0.00
-if(OUTPUT .ne. "no")globalF=0.00
+if(OUTPUT .eq. "ALL")allocate(outprob(npos,nind,sum(isF)))
+if(OUTPUT .eq. "ALL" .or. OUTPUT .eq. "SUM")allocate(globalF(npos,nind))
+if(OUTPUT .eq. "ALL")outprob=0.00
+if(OUTPUT .eq. "ALL" .or. OUTPUT .eq. "SUM")globalF=0.00
 
 if(checksim==1)then
  allocate(classes(nind,npos),oldnum(npos),statein(nind))
@@ -84,7 +87,8 @@ if(checksim==1)then
  close(101)
  print*,'Number of simulated classes ::',maxclass
  allocate(checktable(maxclass,nclust),probtable(100,nclust,2))
- checktable=0.d0;probtable=0.d0
+ allocate(checktable2(maxclass,nclust))
+ checktable=0.d0;probtable=0.d0;checktable2=0.d0
  deallocate(statein)
 endif
 
@@ -151,6 +155,7 @@ print*,'Number of individuals red ::',nind
 
 allocate(trans(nclust,nclust),pinit(nclust),T2(nclust,nclust),num_pi(nclust),Fs(nclust),hsprobs(nF),pemission(npos,2))
 if(estimateG==1)allocate(global(nclust),fromi(nclust),ini(nclust),EL(nclust),mux(nclust))
+allocate(states(npos),phi(nclust,npos),delta(nclust,npos),val(nclust))
 
 !###### start HMM
 
@@ -308,73 +313,20 @@ if(round==niter)then
  if(estimateG==1)write(15,'(i5,*(1x,f11.4))')id,(as(i),i=1,nclust)
 endif
 
-enddo
+enddo ! end EM iterations
 
 l=0
 do k=1,nclust
  if(isF(k)==0)cycle
  l=l+1
- if(OUTPUT .eq. 'PartialF')outprob(1:npos,id,l)=gamma(k,:)
- if(OUTPUT .ne. 'no')globalF(1:npos,id)=globalF(1:npos,id)+gamma(k,:)
+ if(OUTPUT .eq. 'ALL')outprob(1:npos,id,l)=gamma(k,:)
+ if(OUTPUT .eq. 'ALL' .or. OUTPUT .eq. 'SUM')globalF(1:npos,id)=globalF(1:npos,id)+gamma(k,:)
  hsprobs(l)=sum(gamma(k,:))/(1.d0*npos)
 enddo
 
 write(12,'(i6,*(1x,f9.6))')id,(Fs(j),j=1,nclust)
 write(13,'(i6,*(1x,f9.6))')id,(hsprobs(j),j=1,nF),sum(hsprobs),homoz(id)
 write(14,'(i6,*(1x,f9.2))')id,(num_pi(j),j=1,nclust)
-
-
-do chr=1,nchr
-starts=0;ends=0;maxprob=0.00
-do k=chr_limits(chr,1),chr_limits(chr,2)
-! write(16,'(i6,1x,i2,1x,i9,1x,f6.4,*(1x,f9.6))')id,chr,posi(k),freq(k),(gamma(l,k),l=1,nclust)
- pF=dot_product(gamma(:,k),isF)
- if(pF > 0.99)then
-  if(starts==0)starts=k
-  maxprob=max(maxprob,pF)
-  ends=k
- else if(pF <= 0.99)then
-  if(starts /= 0 .and. maxprob > 0.999)then
-   nhet=0;nsnps=0
-   do l=starts,ends
-    if(ift==1 .and. geno(l)==1)nhet=nhet+1
-    if(ift==1 .and. geno(l)/=9)nsnps=nsnps+1
-   enddo
-!   nsnps=ends-starts+1
-   lf=posi(ends)-posi(starts)+1
-   nl=0
-   do l=1,nclust
-     if(isF(l)==0)cycle
-     nl=nl+1
-     hsprobs(nl)=sum(gamma(l,starts:ends))
-   enddo
-   hsprobs=hsprobs/sum(hsprobs)
-!   write(11,'(i4,1x,i2,2(1x,i7),3(1x,i9),2(1x,i7),<nF+1>(1x,f9.6))')id,chr,starts,ends,posi(starts),posi(ends),lf,nhet,nsnps,maxprob,(hsprobs(l),l=1,nF)
-   write(11,'(i4,1x,i2,2(1x,i7),3(1x,i9),2(1x,i7),*(1x,f9.6))')id,chr,starts,ends,posi(starts),posi(ends),lf,nhet,nsnps,maxprob,(hsprobs(l),l=1,nF)
-  endif
-  starts=0;ends=0;maxprob=0.00
- endif  
-enddo
-
-if(starts /=0 .and. maxprob > 0.999)then
- nhet=0;nsnps=0
- do l=starts,ends
-  if(ift==1 .and. geno(l)==1)nhet=nhet+1
-  if(ift==1 .and. geno(l)/=9)nsnps=nsnps+1
- enddo
-! nsnps=ends-starts+1
- lf=posi(ends)-posi(starts)+1
- nl=0
- do l=1,nclust
-   if(isF(l)==0)cycle
-   nl=nl+1
-   hsprobs(nl)=sum(gamma(l,starts:ends))
- enddo
- hsprobs=hsprobs/sum(hsprobs)
-! write(11,'(i4,1x,i2,2(1x,i7),3(1x,i9),2(1x,i7),<nF+1>(1x,f9.6))')id,chr,starts,ends,posi(starts),posi(ends),lf,nhet,nsnps,maxprob,(hsprobs(l),l=1,nF)
- write(11,'(i4,1x,i2,2(1x,i7),3(1x,i9),2(1x,i7),*(1x,f9.6))')id,chr,starts,ends,posi(starts),posi(ends),lf,nhet,nsnps,maxprob,(hsprobs(l),l=1,nF)
-endif
-enddo ! output per chr
 
 if(checksim==1)then
  do k=1,npos
@@ -389,13 +341,122 @@ if(checksim==1)then
  enddo
 endif
 
+!####### VITERBI ALGORITHM #######
+
+phi=0;states=0;pinit=Fs
+
+do chr=1,nchr
+fpos=chr_limits(chr,1);lpos=chr_limits(chr,2)
+
+ ! initialisation
+
+ do i=1,nclust
+  delta(i,fpos)=log(pinit(i))+log(pemission(fpos,isF(i)+1))
+  phi(i,fpos)=0
+ enddo
+
+ ! recursion
+  
+ do k=fpos+1,lpos
+  trans=transition(k-1)
+  do i=1,nclust
+   do j=1,nclust
+    val(j)=delta(j,k-1)+log(trans(j,i))
+   enddo
+   pos=maxloc(val)
+   phi(i,k)=pos(1)
+   delta(i,k)=val(pos(1))+log(pemission(k,isF(i)+1))
+  enddo
+ enddo
+
+ ! termintation
+
+ pmax=maxval(delta(:,lpos))
+! print*,"Max prob. ::",pmax ! check that probabilities don't underflow
+ pos=maxloc(delta(:,lpos))
+ states(lpos)=pos(1)
+
+ ! path
+
+ do k=lpos-1,fpos,-1
+  states(k)=phi(states(k+1),k+1)
+!  print*,k,states(k),gamma(1,k)
+ enddo
+
+enddo ! end chromosome
+
+if(checksim==1)then
+ do k=1,npos
+    checktable2(classes(id,oldnum(k)),states(k))=checktable2(classes(id,oldnum(k)),states(k))+1.d0
+ enddo
+endif
+
+!#### output HBD tracks
+
+do chr=1,nchr
+starts=0;ends=0;nhet=0;nsnps=0
+do k=chr_limits(chr,1),chr_limits(chr,2)
+ if(OUTPUT .eq. 'IND')write(112,'(i4,1x,i2,1x,i9,1x,i2,*(1x,f9.6))')id,chr,posi(k),states(k),(gamma(i,k),i=1,nclust)
+ if(isF(states(k)) == 1)then
+  if(starts==0)starts=k
+  if(ift==1 .and. geno(k)==1)nhet=nhet+1
+  if(ift==1 .and. geno(k)/=9)nsnps=nsnps+1
+  ends=k
+ else if(isF(states(k)) ==0)then
+  if(starts /= 0)then
+   lf=posi(ends)-posi(starts)+1
+   write(11,'(i4,1x,i2,2(1x,i7),3(1x,i9),2(1x,i7))')id,chr,starts,ends,posi(starts),posi(ends),lf,nhet,nsnps
+  endif
+  starts=0;ends=0
+  nhet=0;nsnps=0
+ endif  
+enddo
+
+if(starts /=0)then
+ lf=posi(ends)-posi(starts)+1
+ write(11,'(i4,1x,i2,2(1x,i7),3(1x,i9),2(1x,i7))')id,chr,starts,ends,posi(starts),posi(ends),lf,nhet,nsnps
+endif
+enddo ! output per chr
+
+!#### output states tracks
+
+do chr=1,nchr
+starts=0;ends=0;nhet=0;nsnps=0;oldstate=0
+do k=chr_limits(chr,1),chr_limits(chr,2)
+ if(states(k)==oldstate .and. isF(states(k))==1)then
+  if(ift==1 .and. geno(k)==1)nhet=nhet+1
+  if(ift==1 .and. geno(k)/=9)nsnps=nsnps+1
+  ends=k
+ else if(states(k) /= oldstate)then
+  if(starts /= 0)then
+   lf=posi(ends)-posi(starts)+1
+   write(21,'(i4,1x,i2,2(1x,i7),3(1x,i9),2(1x,i7),1x,i2)')id,chr,starts,ends,posi(starts),posi(ends),lf,nhet,nsnps,oldstate
+  endif
+  starts=0;ends=0;nhet=0;nsnps=0 
+  if(isF(states(k)) == 1)then
+    if(ift==1 .and. geno(k)==1)nhet=nhet+1
+    if(ift==1 .and. geno(k)/=9)nsnps=nsnps+1
+    starts=k;ends=k
+  endif
+ endif  
+ oldstate=states(k)
+enddo
+
+if(starts /=0)then
+ lf=posi(ends)-posi(starts)+1
+ write(21,'(i4,1x,i2,2(1x,i7),3(1x,i9),2(1x,i7),1x,i2)')id,chr,starts,ends,posi(starts),posi(ends),lf,nhet,nsnps,oldstate
+endif
+enddo ! output per chr
+
 enddo ! id
 
 if(checksim==1)then
  open(101,file='sim_by_res.txt')
+ open(103,file='sim_by_res2.txt')
  open(102,file='sim_by_probres.txt')
  do i=1,nclust
    write(101,'(i2,*(1x,f14.4))')i,(checktable(j,i),j=1,maxclass)
+   write(103,'(i2,*(1x,f14.4))')i,(checktable2(j,i),j=1,maxclass)
  enddo
  do j=1,100
    do i=1,nclust
@@ -405,10 +466,9 @@ if(checksim==1)then
  enddo
 endif
 
-
 ! ****** OUTPUT *********
 
-if(OUTPUT .eq. 'PartialF')then
+if(OUTPUT .eq. 'ALL')then
 l=0
 do i=1,nclust
  if(isF(i)==1)then
@@ -416,7 +476,7 @@ do i=1,nclust
   if(l<10)write(str4,'(i1)')l
   if(l>9 .and. l<100)write(str4,'(i2)')l
   if(l>99 .and. l<1000)write(str4,'(i3)')l
-  str1="PartialF"//trim(str4)//".txt"
+  str1="HBDp_R"//trim(str4)//".txt"
   outfile=str1//".txt"
   open(112,file=outfile)
   do chr=1,nchr
@@ -429,8 +489,8 @@ do i=1,nclust
 enddo
 endif
 
-if(OUTPUT .ne. 'no')then
-  open(112,file='TotalF.txt')
+if(OUTPUT .eq. 'ALL' .or. OUTPUT .eq. 'SUM')then
+  open(112,file='SUMHBDp.txt')
   do chr=1,nchr
    do k=chr_limits(chr,1),chr_limits(chr,2)
     write(112,'(i8,1x,i10,1x,i3,*(1x,f8.6))')k,posi(k),chr,(globalF(k,id),id=testid,testid2)
@@ -632,8 +692,10 @@ endif
 if(inputline .eq. "#OUTPUT")then
   read(20,*,iostat=io)OUTPUT
   print*,OUTPUT
-  if(OUTPUT .ne. 'PartialF' .and. OUTPUT .ne. 'TotalF')then
-    print*,'Warning: output format should be PartialF or TotalF !'
+  if(OUTPUT .ne. 'ALL' .and. OUTPUT .ne. 'SUM' .and. OUTPUT .ne. 'IND')then
+    print*,'Warning: output format should be ALL -one HBD probability file per HBD class (one individual per column)'
+    print*,'Or output format should be SUM -one file with sum of HBD probabilities over all classes (one individual per column)'
+    print*,'Or output format should be IND -one file with HBD probabilities and best state sequence are printed per individuals (for each individual N lines, with N the number of markers)'
     print*,'Format ignored !'
     OUTPUT='no'
   endif
