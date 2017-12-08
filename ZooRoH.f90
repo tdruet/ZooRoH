@@ -317,6 +317,7 @@ if(round==niter .or. convf < convthr)then
  if(estimateG==1)write(15,'(i5,*(1x,f11.4))')id,(as(i),i=1,nclust)
 endif
 if(convf < convthr)exit
+blabla
 
 enddo ! end EM iterations
 
