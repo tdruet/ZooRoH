@@ -30,6 +30,7 @@ real*8, allocatable ::global(:),fromi(:),ini(:),mux(:),EL(:)
 real*4, allocatable ::genosr(:,:),genor(:)
 real*8, allocatable ::val(:),delta(:,:)
 real*8, parameter ::Morgan=100000000.d0
+real*8 ::convf,convthr,loglik0
 character*50 ::mname,chrom,all1,all2,chromold,filename,freqfile
 
 character*50 ::simfile,outfile,str1,str4,OUTPUT
@@ -301,17 +302,21 @@ endif
 
 !if(mod(round,1)==0)print'(i5,1x,f15.6,*(1x,f15.6))',round,loglik,(as(i),i=1,nclust)
 
+convf=1.d0
+if(round > 1)convf=abs(loglik-loglik0)/abs(loglik)
+loglik0=loglik
 
 Fs=num_pi/sum(num_pi)
-if(round==niter)then
+if(round==niter .or. convf < convthr)then
  if(estimateG==1)nparam=2*nclust-1
  if(estimateG/=1)nparam=nclust-1
  if(estimateG==1 .and. onerate==1 .and. nclust==2)nparam=2
  AIC=-2.d0*loglik+2.d0*nparam
  BIC=-2.d0*loglik+log(1.d0*npos)*nparam
- print'(i6,1x,i4,3(1x,f15.6),*(1x,f9.7,1x,f11.4))',id,round,loglik,AIC,BIC,(Fs(i),as(i),i=1,nclust)
+ print'(i6,1x,i4,3(1x,f15.6),1x,d10.4,*(1x,f9.7,1x,f11.4))',id,round,loglik,AIC,BIC,convf,(Fs(i),as(i),i=1,nclust)
  if(estimateG==1)write(15,'(i5,*(1x,f11.4))')id,(as(i),i=1,nclust)
 endif
+if(convf < convthr)exit
 
 enddo ! end EM iterations
 
@@ -567,6 +572,7 @@ open(20,file='param.txt')
 nclust=0;testid=0;testid2=0;nind=0;ift=1
 minmaf=0.d0;readf=0;estimateG=0;niter=1000;onerate=0
 OUTPUT='no'
+convthr=1e-10
 
 print*,'        '
 print*,'/***** PARAMETER FILE *****/'
@@ -700,6 +706,11 @@ if(inputline .eq. "#OUTPUT")then
     OUTPUT='no'
   endif
   check=1
+endif
+if(inputline .eq. "#CONV_CRIT")then
+read(20,*,iostat=io)convthr
+print*,'Convergence criteria ::',convthr 
+check=1
 endif
 if(check==0)print*,'Unknown option (ignored) ::',inputline
 if(io/=0)exit
