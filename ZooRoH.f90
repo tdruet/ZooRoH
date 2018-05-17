@@ -18,7 +18,7 @@ program ZooRoH
 implicit none
 integer ::i,j,k,l,io,n,npos,nclust,round,nind,id,maxid,bp,chr,testid,testid2,nF,nl
 integer ::lf,nhet,nsnps,starts,ends,nchr,lpos,fpos,niter,ift,oldstate
-integer ::readf,estimateG,onerate,nparam,pos(1)
+integer ::readf,writef,infocol,estimateG,onerate,nparam,pos(1),PRINTERR
 integer*2, allocatable ::geno(:),genos(:,:)
 integer, allocatable ::posi(:),chr_limits(:,:),isF(:),IT(:,:),states(:),phi(:,:)
 real*8, allocatable ::alpha(:,:),scaling(:),beta(:,:),gamma(:,:),ems(:,:),freq(:),pinit(:),Fs(:),hsprobs(:),as(:),ainit(:),Finit(:)
@@ -30,8 +30,8 @@ real*8, allocatable ::global(:),fromi(:),ini(:),mux(:),EL(:)
 real*4, allocatable ::genosr(:,:),genor(:)
 real*8, allocatable ::val(:),delta(:,:)
 real*8, parameter ::Morgan=100000000.d0
-real*8 ::convf,convthr,loglik0
-character*50 ::mname,chrom,all1,all2,chromold,filename,freqfile
+real*8 ::convf,convthr,loglik0,generrt
+character*50 ::mname,chrom,all1,all2,chromold,filename,freqfile,freqoutfile
 
 character*50 ::simfile,outfile,str1,str4,OUTPUT
 integer ::checksim,nclass,maxclass
@@ -53,11 +53,12 @@ open(13,file='HBDclasses_MeanProb.txt')
 open(14,file='HBDclasses_Counts.txt')
 if(estimateG==1)open(15,file='HBDclasses_Rates.txt')
 if(OUTPUT .eq. 'IND')open(112,file='LocalHBDp.txt')
+if(PRINTERR==1)open(115,file='GENO_ERR.txt')
 !open(16,file='inbreeding.prob')
 
 npos=0;chromold='chr0';nchr=0
 do
-read(10,*,iostat=io)chrom,mname,bp
+read(10,*,iostat=io)chrom
 if(io/=0)exit
 npos=npos+1
 if(chrom .ne. chromold)nchr=nchr+1
@@ -69,9 +70,9 @@ if(ift==2 .or. ift==3)allocate(genor(3*nind),freq(npos),posi(npos),genosr(3*nind
 if(ift==4)allocate(geno(2*nind),freq(npos),posi(npos),genos(2*nind,npos),chr_limits(nchr,2))
 allocate(homoz(nind))
 if(OUTPUT .eq. "ALL")allocate(outprob(npos,nind,sum(isF)))
-if(OUTPUT .eq. "ALL" .or. OUTPUT .eq. "SUM")allocate(globalF(npos,nind))
+if(OUTPUT .eq. "ALL" .or. OUTPUT .eq. "SUM" .or. PRINTERR==1)allocate(globalF(npos,nind))
 if(OUTPUT .eq. "ALL")outprob=0.00
-if(OUTPUT .eq. "ALL" .or. OUTPUT .eq. "SUM")globalF=0.00
+if(OUTPUT .eq. "ALL" .or. OUTPUT .eq. "SUM" .or. PRINTERR==1)globalF=0.00
 
 if(checksim==1)then
  allocate(classes(nind,npos),oldnum(npos),statein(nind))
@@ -113,15 +114,21 @@ if(readf==1)then
  close(101)
 endif
 
+if(writef==1)open(105,file=freqoutfile)
+
 n=0;k=0;posi=0.00;chr_limits=0;chromold='chr0';chr=0;freq=0.d0
 do
- if(ift==1)read(10,*,iostat=io)chrom,mname,bp,all1,all2,(geno(i),i=1,nind)
- if(ift==2 .or. ift==3)read(10,*,iostat=io)chrom,mname,bp,all1,all2,(genor(i),i=1,3*nind)
- if(ift==4)read(10,*,iostat=io)chrom,mname,bp,all1,all2,(geno(i),i=1,2*nind)
+ if(ift==1 .and. infocol==5)read(10,*,iostat=io)chrom,mname,bp,all1,all2,(geno(i),i=1,nind)
+ if((ift==2 .or. ift==3) .and. infocol==5)read(10,*,iostat=io)chrom,mname,bp,all1,all2,(genor(i),i=1,3*nind)
+ if(ift==4 .and. infocol==5)read(10,*,iostat=io)chrom,mname,bp,all1,all2,(geno(i),i=1,2*nind)
+ if(ift==1 .and. infocol==4)read(10,*,iostat=io)chrom,bp,all1,all2,(geno(i),i=1,nind)
+ if((ift==2 .or. ift==3) .and. infocol==4)read(10,*,iostat=io)chrom,bp,all1,all2,(genor(i),i=1,3*nind)
+ if(ift==4 .and. infocol==4)read(10,*,iostat=io)chrom,bp,all1,all2,(geno(i),i=1,2*nind)
  if(io/=0)exit
  k=k+1
  if(readf==0)then
   call get_freq
+  if(writef==1)write(105,'(f9.6)')f0
  else
   f0=freqin(k)
  endif
@@ -146,6 +153,7 @@ print*,'Number of selected variants (based on MAF) ::',n
 npos=n
 
 if(readf==1)deallocate(freqin)
+if(writef==1)close(105)
 
 call esthomoz
 
@@ -325,7 +333,7 @@ do k=1,nclust
  if(isF(k)==0)cycle
  l=l+1
  if(OUTPUT .eq. 'ALL')outprob(1:npos,id,l)=gamma(k,:)
- if(OUTPUT .eq. 'ALL' .or. OUTPUT .eq. 'SUM')globalF(1:npos,id)=globalF(1:npos,id)+gamma(k,:)
+ if(OUTPUT .eq. 'ALL' .or. OUTPUT .eq. 'SUM' .or. PRINTERR==1)globalF(1:npos,id)=globalF(1:npos,id)+gamma(k,:)
  hsprobs(l)=sum(gamma(k,:))/(1.d0*npos)
 enddo
 
@@ -402,6 +410,8 @@ do chr=1,nchr
 starts=0;ends=0;nhet=0;nsnps=0
 do k=chr_limits(chr,1),chr_limits(chr,2)
  if(OUTPUT .eq. 'IND')write(112,'(i4,1x,i2,1x,i9,1x,i2,*(1x,f9.6))')id,chr,posi(k),states(k),(gamma(i,k),i=1,nclust)
+ if(PRINTERR==1 .and. globalF(k,id) > generrt .and. genos(id,k)==1)&
+   write(115,'(i4,1x,i2,1x,i9,1x,f9.6,1x,i1)')id,chr,posi(k),globalF(k,id),genos(id,k)
  if(isF(states(k)) == 1)then
   if(starts==0)starts=k
   if(ift==1 .and. geno(k)==1)nhet=nhet+1
@@ -573,6 +583,9 @@ nclust=0;testid=0;testid2=0;nind=0;ift=1
 minmaf=0.d0;readf=0;estimateG=0;niter=1000;onerate=0
 OUTPUT='no'
 convthr=1e-10
+PRINTERR=0
+checksim=0
+writef=0;infocol=5
 
 print*,'        '
 print*,'/***** PARAMETER FILE *****/'
@@ -661,6 +674,17 @@ if(inputline .eq. "#FREQUENCIES")then
   readf=1
   check=1
 endif
+if(inputline .eq. "#EXPORT_FREQUENCIES")then
+  read(20,*,iostat=io)freqoutfile
+  print*,freqoutfile
+  writef=1
+  check=1
+endif
+if(inputline .eq. "#MARKER_INFO")then
+  read(20,*,iostat=io)infocol
+  print*,infocol
+  check=1
+endif
 if(inputline .eq. "#ITERATIONS")then
   read(20,*,iostat=io)niter
   print*,niter
@@ -708,9 +732,18 @@ if(inputline .eq. "#OUTPUT")then
   check=1
 endif
 if(inputline .eq. "#CONV_CRIT")then
-read(20,*,iostat=io)convthr
-print*,'Convergence criteria ::',convthr 
-check=1
+ read(20,*,iostat=io)convthr
+ print*,'Convergence criteria ::',convthr 
+ check=1
+endif
+if(inputline .eq. "#GENO_ERROR")then
+ read(20,*,iostat=io)generrt
+ PRINTERR=1
+ check=1
+ if(ift /= 1)then
+   print*,"#GENO_ERROR is only for GEN format!"
+   stop
+ endif
 endif
 if(check==0)print*,'Unknown option (ignored) ::',inputline
 if(io/=0)exit
